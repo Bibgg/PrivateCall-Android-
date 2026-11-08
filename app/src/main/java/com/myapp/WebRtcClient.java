@@ -18,7 +18,7 @@ public class WebRtcClient {
     private PeerConnectionFactory factory;
     private PeerConnection peerConnection;
     private AudioSource audioSource;
-    private AudioTrack localAudioTrack;
+    private AudioTrack localAudioTrack;\n    private IceCandidateListener iceCandidateListener;\n    public interface IceCandidateListener { void onCandidate(org.webrtc.IceCandidate candidate); }\n    public void setIceCandidateListener(IceCandidateListener listener) { iceCandidateListener = listener; }
 
     public void initialize(Context context) {
         PeerConnectionFactory.initialize(
@@ -71,7 +71,7 @@ public class WebRtcClient {
         peerConnection.addTrack(localAudioTrack, Arrays.asList("privatecall-audio-stream"));
     }
 
-    public void setMicrophoneEnabled(boolean enabled) {
+    public void addIceCandidate(org.webrtc.IceCandidate candidate) { if (peerConnection != null) peerConnection.addIceCandidate(candidate); }\n\n    public void setMicrophoneEnabled(boolean enabled) {
         if (localAudioTrack != null) localAudioTrack.setEnabled(enabled);
     }
 
