@@ -26,6 +26,17 @@
             android:text="Call" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/connectionStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="8dp"
+        android:text="Connecting to server…"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:background="#315B68" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerMessages"
         android:layout_width="match_parent"
