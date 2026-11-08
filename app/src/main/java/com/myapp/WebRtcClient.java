@@ -48,8 +48,8 @@ public class WebRtcClient {
             @Override public void onIceConnectionReceivingChange(boolean receiving) { }
             @Override public void onIceGatheringChange(PeerConnection.IceGatheringState state) { }
             @Override public void onIceCandidate(org.webrtc.IceCandidate candidate) {
-                // ICE signaling is the next integration step.
                 Log.d(TAG, "Local ICE candidate gathered");
+                if (iceCandidateListener != null) iceCandidateListener.onCandidate(candidate);
             }
             @Override public void onIceCandidatesRemoved(org.webrtc.IceCandidate[] candidates) { }
             @Override public void onAddStream(org.webrtc.MediaStream stream) { }
@@ -82,6 +82,14 @@ public class WebRtcClient {
 
     public void createOffer(SdpObserver observer) {
         if (peerConnection != null) peerConnection.createOffer(observer, new MediaConstraints());
+    }
+
+    public void createOffer(SdpObserver observer, MediaConstraints constraints) {
+        if (peerConnection != null) peerConnection.createOffer(observer, constraints);
+    }
+
+    public void createAnswer(SdpObserver observer, MediaConstraints constraints) {
+        if (peerConnection != null) peerConnection.createAnswer(observer, constraints);
     }
 
     public void setLocalDescription(SdpObserver observer, SessionDescription description) {
