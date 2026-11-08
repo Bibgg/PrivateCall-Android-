@@ -3,6 +3,7 @@ package com.myapp;
 import android.content.Context;
 import android.util.Log;
 import org.webrtc.EglBase;
+import org.webrtc.MediaConstraints;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
 import org.webrtc.SdpObserver;
@@ -63,7 +64,7 @@ public class WebRtcClient {
 
     public void createOffer(SdpObserver observer) {
         if (peerConnection == null) return;
-        peerConnection.createOffer(observer, new PeerConnection.MediaConstraints());
+        peerConnection.createOffer(observer, new MediaConstraints());
     }
 
     public void setLocalDescription(SdpObserver observer, SessionDescription description) {
