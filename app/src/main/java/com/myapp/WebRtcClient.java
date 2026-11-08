@@ -2,35 +2,32 @@ package com.myapp;
 
 import android.content.Context;
 import android.util.Log;
+import org.webrtc.AudioSource;
+import org.webrtc.AudioTrack;
 import org.webrtc.EglBase;
 import org.webrtc.MediaConstraints;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
 import org.webrtc.SdpObserver;
 import org.webrtc.SessionDescription;
-import org.webrtc.SurfaceViewRenderer;
 import java.util.Arrays;
 import java.util.List;
 
 public class WebRtcClient {
     private static final String TAG = "PrivateCallWebRTC";
-    private final EglBase eglBase = EglBase.create();
     private PeerConnectionFactory factory;
     private PeerConnection peerConnection;
+    private AudioSource audioSource;
+    private AudioTrack localAudioTrack;
 
-    public void initialize(Context context, SurfaceViewRenderer remoteRenderer) {
-        PeerConnectionFactory.InitializationOptions options =
+    public void initialize(Context context) {
+        PeerConnectionFactory.initialize(
                 PeerConnectionFactory.InitializationOptions.builder(context)
-                        .createInitializationOptions();
-        PeerConnectionFactory.initialize(options);
+                        .createInitializationOptions());
 
         factory = PeerConnectionFactory.builder()
                 .setOptions(new PeerConnectionFactory.Options())
                 .createPeerConnectionFactory();
-
-        remoteRenderer.init(eglBase.getEglBaseContext(), null);
-        remoteRenderer.setEnableHardwareScaler(true);
-        remoteRenderer.setMirror(false);
 
         List<PeerConnection.IceServer> iceServers = Arrays.asList(
                 PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
@@ -39,14 +36,17 @@ public class WebRtcClient {
                 new PeerConnection.RTCConfiguration(iceServers);
 
         peerConnection = factory.createPeerConnection(configuration, new PeerConnection.Observer() {
-            @Override public void onSignalingChange(PeerConnection.SignalingState state) { }
+            @Override public void onSignalingChange(PeerConnection.SignalingState state) {
+                Log.d(TAG, "Signaling: " + state);
+            }
             @Override public void onIceConnectionChange(PeerConnection.IceConnectionState state) {
-                Log.d(TAG, "ICE state: " + state);
+                Log.d(TAG, "ICE: " + state);
             }
             @Override public void onIceConnectionReceivingChange(boolean receiving) { }
             @Override public void onIceGatheringChange(PeerConnection.IceGatheringState state) { }
             @Override public void onIceCandidate(org.webrtc.IceCandidate candidate) {
-                // TODO: Send candidate to the other peer through Socket.io signaling.
+                // ICE signaling is the next integration step.
+                Log.d(TAG, "Local ICE candidate gathered");
             }
             @Override public void onIceCandidatesRemoved(org.webrtc.IceCandidate[] candidates) { }
             @Override public void onAddStream(org.webrtc.MediaStream stream) { }
@@ -54,17 +54,29 @@ public class WebRtcClient {
             @Override public void onDataChannel(org.webrtc.DataChannel channel) { }
             @Override public void onRenegotiationNeeded() { }
             @Override public void onAddTrack(org.webrtc.RtpReceiver receiver,
-                                             org.webrtc.MediaStream[] streams) { }
+                                             org.webrtc.MediaStream[] streams) {
+                if (receiver.track() instanceof AudioTrack) {
+                    ((AudioTrack) receiver.track()).setEnabled(true);
+                }
+            }
         });
 
         if (peerConnection == null) {
-            Log.e(TAG, "PeerConnection creation failed");
+            throw new IllegalStateException("Could not create WebRTC peer connection");
         }
+
+        audioSource = factory.createAudioSource(new MediaConstraints());
+        localAudioTrack = factory.createAudioTrack("privatecall-microphone", audioSource);
+        localAudioTrack.setEnabled(true);
+        peerConnection.addTrack(localAudioTrack, Arrays.asList("privatecall-audio-stream"));
+    }
+
+    public void setMicrophoneEnabled(boolean enabled) {
+        if (localAudioTrack != null) localAudioTrack.setEnabled(enabled);
     }
 
     public void createOffer(SdpObserver observer) {
-        if (peerConnection == null) return;
-        peerConnection.createOffer(observer, new MediaConstraints());
+        if (peerConnection != null) peerConnection.createOffer(observer, new MediaConstraints());
     }
 
     public void setLocalDescription(SdpObserver observer, SessionDescription description) {
@@ -78,12 +90,20 @@ public class WebRtcClient {
     public void close() {
         if (peerConnection != null) {
             peerConnection.close();
+            peerConnection.dispose();
             peerConnection = null;
+        }
+        if (localAudioTrack != null) {
+            localAudioTrack.dispose();
+            localAudioTrack = null;
+        }
+        if (audioSource != null) {
+            audioSource.dispose();
+            audioSource = null;
         }
         if (factory != null) {
             factory.dispose();
             factory = null;
         }
-        eglBase.release();
     }
 }
