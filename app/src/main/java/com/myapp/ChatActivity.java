@@ -58,7 +58,7 @@ public class ChatActivity extends Activity {
         });
 
         call.setOnClickListener(v ->
-                Toast.makeText(this, "Calling will be connected after chat signaling is tested.", Toast.LENGTH_LONG).show()
+                startActivity(new android.content.Intent(this, CallActivity.class))
         );
     }
 
