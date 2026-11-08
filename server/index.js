@@ -63,7 +63,7 @@ io.on("connection", (socket) => {
     }
 
     socket.join(roomId);
-    socket.emit("room:joined", { roomId, socketId: socket.id });
+    const peers = Array.from(io.sockets.adapter.rooms.get(roomId) || []).filter(id => id !== socket.id);\n    socket.emit("room:joined", { roomId, socketId: socket.id, peers });
     socket.to(roomId).emit("room:user-joined", { socketId: socket.id });
   });
 
