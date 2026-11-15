@@ -78,7 +78,6 @@ public class WebRtcClient {
 
         videoSource=factory.createVideoSource(false);
         textureHelper=SurfaceTextureHelper.create("PrivateCallCamera",eglBase.getEglBaseContext());
-        videoSource.initialize(textureHelper,context,videoSource.getCapturerObserver());
         Camera2Enumerator enumerator=new Camera2Enumerator(context);
         String cameraName=null;
         for(String name:enumerator.getDeviceNames())if(enumerator.isFrontFacing(name)){cameraName=name;break;}
