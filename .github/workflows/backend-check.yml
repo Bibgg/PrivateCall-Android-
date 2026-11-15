@@ -1,0 +1,30 @@
+name: Validate PrivateCall backend
+
+on:
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "server/**"
+      - ".github/workflows/backend-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install backend dependencies
+        run: npm install --ignore-scripts
+      - name: Check JavaScript syntax
+        run: |
+          node --check index.js
+          node --check models.js
