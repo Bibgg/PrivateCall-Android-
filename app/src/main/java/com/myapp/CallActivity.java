@@ -67,7 +67,7 @@ public class CallActivity extends Activity implements SocketManager.CallListener
         if(offer.isEmpty()){show("Call offer नहीं मिला — दोबारा कॉल करें");return;}
         accept.setEnabled(false);status.setText("Video call connect हो रही है…");
         SessionDescription remote=new SessionDescription(SessionDescription.Type.OFFER,offer);
-        rtc.setRemoteDescription(observer(s->{remoteDescriptionSet=true;drain();rtc.createAnswer(observer(answer->rtc.setLocalDescription(observer(x->{socket.sendAnswer(target,answer.description);accepted=true;show("Video call connected");},"Answer setup failed: "),answer),"Answer failed: "));},"Incoming setup failed: "),remote);
+        rtc.setRemoteDescription(observer(s->{remoteDescriptionSet=true;drain();rtc.createAnswer(observer(answer->rtc.setLocalDescription(observer(x->{socket.sendAnswer(target,answer.description);accepted=true;show("Video call connected");},"Answer setup failed: "),answer),"Answer failed: "),new MediaConstraints());},"Incoming setup failed: "),remote);
     }
     @Override public void onAnswer(String sdp){
         SessionDescription a=new SessionDescription(SessionDescription.Type.ANSWER,sdp);
