@@ -60,7 +60,7 @@ app.post("/api/auth/register", async (req, res) => {
     if (!/^[a-zA-Z0-9_.]{3,24}$/.test(username) || password.length < 10 || password.length > 128) {
       return res.status(400).json({ error: "INVALID_INPUT", message: "Username: 3–24 letters/numbers/._ ; password: 10–128 characters." });
     }
-    if (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return res.status(400).json({ error: "INVALID_EMAIL" });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "INVALID_EMAIL" });
     const usernameNormalized = username.toLowerCase();
     const exists = await User.findOne({ $or: [{ usernameNormalized }, ...(email ? [{ emailNormalized: email }] : [])] });
     if (exists) return res.status(409).json({ error: "ACCOUNT_EXISTS" });
