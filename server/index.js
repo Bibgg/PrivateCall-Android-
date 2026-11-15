@@ -32,7 +32,7 @@ app.get("/health", (_req, res) => {
   res.status(ready ? 200 : 503).json({ ok: ready, database: ready ? "connected" : "disconnected" });
 });
 
-const escapeRegex = value => value.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+const escapeRegex = value => value.replaceAll(".", "\\.");
 const clean = (value, max = 100) => typeof value === "string" ? value.trim().slice(0, max) : "";
 const validId = value => mongoose.isValidObjectId(value);
 const publicUser = u => ({ id: String(u._id), username: u.username, displayName: u.displayName || u.username, avatarUrl: u.avatarUrl || "" });
@@ -91,7 +91,7 @@ app.get("/api/me", requireAuth, async (req, res) => {
 
 app.get("/api/users/search", requireAuth, async (req, res) => {
   const q = clean(req.query.q, 40).toLowerCase();
-  if (q.length < 2) return res.json({ users: [] });
+  if (q.length < 2 || !/^[a-z0-9_. -]+$/i.test(q)) return res.json({ users: [] });
   const pattern = new RegExp("^" + escapeRegex(q), "i");
   const users = await User.find({ _id: { $ne: req.userId }, $or: [{ usernameNormalized: pattern }, { displayName: pattern }] }).limit(20);
   res.json({ users: users.map(publicUser) });
