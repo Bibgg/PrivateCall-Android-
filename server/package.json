@@ -1,8 +1,8 @@
 {
   "name": "privatecall-backend",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Node.js and Socket.IO signaling backend for PrivateCall Android",
+  "description": "Authenticated PrivateCall API, private chat, and WebRTC signaling",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -12,9 +12,13 @@
     "node": ">=20"
   },
   "dependencies": {
+    "bcryptjs": "2.4.3",
     "cors": "2.8.5",
     "express": "4.21.2",
+    "express-rate-limit": "7.5.0",
     "helmet": "8.0.0",
+    "jsonwebtoken": "9.0.2",
+    "mongoose": "8.9.5",
     "socket.io": "4.8.1"
   }
 }
