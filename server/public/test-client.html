@@ -27,7 +27,7 @@ button.secondary{background:#33425d}button.danger{background:#a83e50}button:disa
 <label>Available peers</label><ul id="peers"><li class="small">Join the room to see peers.</li></ul>
 <div class="row"><button id="call" disabled>Call selected peer</button><button class="danger" id="hangup" disabled>End call</button></div>
 <div class="status" id="callStatus">No active call</div>
-<audio id="remoteAudio" autoplay playsinline></audio>
+<div class="row"><div><p class="small">Local camera</p><video id="localVideo" autoplay muted playsinline style="width:100%;border-radius:12px;background:#05090d;aspect-ratio:4/3;object-fit:cover"></video></div><div><p class="small">Remote camera</p><video id="remoteVideo" autoplay playsinline style="width:100%;border-radius:12px;background:#05090d;aspect-ratio:4/3;object-fit:cover"></video></div></div><audio id="remoteAudio" autoplay playsinline></audio>
 <p class="small">Microphone permission is requested only when starting a call. Keep this page open during the test. This is a development tool, not an authenticated private calling client.</p>
 </main>
 <script src="/socket.io/socket.io.js"></script>
