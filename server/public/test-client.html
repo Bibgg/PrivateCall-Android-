@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PrivateCall WebRTC Test Client</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#101522;color:#eef2ff}
+*{box-sizing:border-box}body{margin:0;padding:22px;max-width:760px;margin-inline:auto}
+main{background:#192235;border:1px solid #34425d;border-radius:20px;padding:22px}
+h1{font-size:25px;margin:0 0 6px}p{color:#aab7d0;line-height:1.5}
+label{display:block;font-size:13px;color:#b9c6df;margin:14px 0 6px}
+input,button{width:100%;padding:13px;border-radius:12px;border:1px solid #455574;background:#101a2b;color:#fff;font-size:15px}
+button{cursor:pointer;background:#316be8;border:0;font-weight:650;margin-top:10px}
+button.secondary{background:#33425d}button.danger{background:#a83e50}button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.status{padding:12px;border-radius:12px;background:#101a2b;margin:15px 0;color:#a9c6ff;word-break:break-word}
+#peers{padding-left:20px;color:#d8e2f6}.small{font-size:12px;color:#91a0bb}.hidden{display:none}
+</style>
+</head>
+<body><main>
+<h1>PrivateCall WebRTC Test</h1>
+<p>Use this page as a browser test peer for the Android app. Open it on another device or browser session, join the same room, then select the peer and call.</p>
+<div class="status" id="status">Not connected</div>
+<label for="room">Room ID (must match Android app)</label>
+<input id="room" value="privatecall-test-room" autocomplete="off">
+<div class="row"><button id="join">Connect & Join</button><button class="secondary" id="refresh" disabled>Refresh peers</button></div>
+<label>Available peers</label><ul id="peers"><li class="small">Join the room to see peers.</li></ul>
+<div class="row"><button id="call" disabled>Call selected peer</button><button class="danger" id="hangup" disabled>End call</button></div>
+<div class="status" id="callStatus">No active call</div>
+<audio id="remoteAudio" autoplay playsinline></audio>
+<p class="small">Microphone permission is requested only when starting a call. Keep this page open during the test. This is a development tool, not an authenticated private calling client.</p>
+</main>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(() => {
+ const $=id=>document.getElementById(id);
+ const status=s=>$("status").textContent=s;
+ const callStatus=s=>$("callStatus").textContent=s;
+ let socket=null, roomId="", peers=[], selected="", pc=null, localStream=null, remoteSet=false, pendingIce=[], currentPeer="";
+ const config={iceServers:[{urls:"stun:stun.l.google.com:19302"}]};
+ function setConnected(on){$("join").disabled=on;$("refresh").disabled=!on;$("call").disabled=!on||!selected;$("hangup").disabled=!pc;}
+ function renderPeers(){
+   const list=$("peers");list.innerHTML="";
+   if(!peers.length){list.innerHTML='<li class="small">No other peers in this room yet.</li>';selected="";$("call").disabled=true;return;}
+   peers.forEach(id=>{const li=document.createElement("li");const b=document.createElement("button");b.className="secondary";b.textContent=(id===selected?"✓ ":"")+id;b.onclick=()=>{selected=id;renderPeers();};li.appendChild(b);list.appendChild(li);});
+   $("call").disabled=!socket||!socket.connected||!selected||!!pc;
+ }
+ function addPeer(id){if(!id||id===socket.id)return;if(!peers.includes(id))peers.push(id);renderPeers();}
+ function removePeer(id){peers=peers.filter(x=>x!==id);if(selected===id)selected="";renderPeers();}
+ function send(event,data){if(!socket||!socket.connected||!currentPeer)return;socket.emit(event,{targetSocketId:currentPeer,...data});}
+ async function getPC(){
+   if(pc)return pc;
+   localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+   pc=new RTCPeerConnection(config);
+   localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+   pc.ontrack=e=>{$("remoteAudio").srcObject=e.streams[0];$("remoteAudio").play().catch(()=>{});};
+   pc.onicecandidate=e=>{if(e.candidate)send("call:ice-candidate",{candidate:e.candidate.candidate,sdpMid:e.candidate.sdpMid,sdpMLineIndex:e.candidate.sdpMLineIndex});};
+   pc.onconnectionstatechange=()=>{callStatus("WebRTC: "+pc.connectionState);if(pc.connectionState==="failed"||pc.connectionState==="closed")cleanup(false);};
+   pc.oniceconnectionstatechange=()=>{if(pc)callStatus("ICE: "+pc.iceConnectionState);};
+   $("hangup").disabled=false;
+   return pc;
+ }
+ async function drainIce(){if(!pc||!remoteSet)return;for(const c of pendingIce.splice(0)){try{await pc.addIceCandidate(c);}catch(e){console.warn("ICE add failed",e);}}}
+ async function startCall(){
+   if(!selected)return;currentPeer=selected;
+   try{const p=await getPC();const offer=await p.createOffer();await p.setLocalDescription(offer);send("call:offer",{sdp:p.localDescription.sdp});callStatus("Offer sent. Waiting for answer…");}
+   catch(e){callStatus("Call setup error: "+e.message);cleanup(false);}
+ }
+ async function receiveOffer(data){
+   if(pc)cleanup(false);
+   currentPeer=data.fromSocketId;
+   try{const p=await getPC();await p.setRemoteDescription({type:"offer",sdp:data.sdp});remoteSet=true;await drainIce();const answer=await p.createAnswer();await p.setLocalDescription(answer);send("call:answer",{sdp:p.localDescription.sdp});callStatus("Answer sent. Connecting…");}
+   catch(e){callStatus("Could not answer: "+e.message);cleanup(false);}
+ }
+ async function receiveAnswer(data){
+   if(!pc||data.fromSocketId!==currentPeer)return;
+   try{await pc.setRemoteDescription({type:"answer",sdp:data.sdp});remoteSet=true;await drainIce();callStatus("Answer received. Connecting…");}
+   catch(e){callStatus("Answer error: "+e.message);}
+ }
+ async function receiveIce(data){
+   if(data.fromSocketId!==currentPeer)return;
+   const c={candidate:data.candidate,sdpMid:data.sdpMid,sdpMLineIndex:data.sdpMLineIndex};
+   if(!pc||!remoteSet){pendingIce.push(c);return;}
+   try{await pc.addIceCandidate(c);}catch(e){console.warn("ICE add failed",e);}
+ }
+ function cleanup(notify){
+   if(notify&&currentPeer)send("call:end",{});
+   if(pc){pc.ontrack=null;pc.onicecandidate=null;pc.close();}
+   pc=null;remoteSet=false;pendingIce=[];currentPeer="";
+   if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
+   $("remoteAudio").srcObject=null;$("hangup").disabled=true;
+   $("call").disabled=!socket||!socket.connected||!selected;
+   callStatus("No active call");
+ }
+ $("join").onclick=()=>{
+   roomId=$("room").value.trim();if(!roomId){status("Enter a room ID");return;}
+   if(!/^[a-zA-Z0-9_-]{1,80}$/.test(roomId)){status("Room ID can use letters, numbers, _ and - only (max 80)");return;}
+   socket=io({transports:["websocket","polling"]});
+   socket.on("connect",()=>{status("Connected: "+socket.id+" — joining "+roomId);socket.emit("room:join",{roomId});});
+   socket.on("room:joined",d=>{peers=(d.peers||[]);renderPeers();status("Joined room: "+d.roomId);setConnected(true);});
+   socket.on("room:user-joined",d=>{addPeer(d.socketId);status("Peer joined: "+d.socketId);});
+   socket.on("call:offer",receiveOffer);
+   socket.on("call:answer",receiveAnswer);
+   socket.on("call:ice-candidate",receiveIce);
+   socket.on("call:end",d=>{if(d.fromSocketId===currentPeer){cleanup(false);callStatus("Other peer ended the call");}});
+   socket.on("call:reject",d=>{if(d.fromSocketId===currentPeer){cleanup(false);callStatus("Call rejected");}});
+   socket.on("server:error",d=>status("Server error: "+(d.message||d.code)));
+   socket.on("disconnect",()=>{status("Disconnected");setConnected(false);cleanup(false);});
+   socket.on("connect_error",e=>status("Connection error: "+e.message));
+ };
+ $("refresh").onclick=()=>{if(socket&&socket.connected){socket.emit("room:join",{roomId});status("Refreshing room peers…");}};
+ $("call").onclick=startCall;
+ $("hangup").onclick=()=>cleanup(true);
+})();
+</script>
+</body></html>
