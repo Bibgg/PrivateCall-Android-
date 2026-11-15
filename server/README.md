@@ -1,38 +1,46 @@
-# PrivateCall Backend
+# PrivateCall Backend v2
 
-Node.js + Express + Socket.IO signaling backend for the Android app.
+Node.js 20+, Express, Socket.IO, and MongoDB Atlas. This branch introduces account-based private conversations and user-addressed call signaling.
 
-## Run locally
+## Required Render environment
 
-Requires Node.js 20 or newer.
+Set these in the Render service environment (never commit real values):
 
-```bash
-cd server
-npm install
-npm start
-```
+- `MONGODB_URI`: MongoDB Atlas connection string for the `privatecall` database.
+- `JWT_SECRET`: long random secret, at least 32 characters.
+- `CLIENT_ORIGIN`: `*` for native Android during initial testing, or explicit browser origins if a web client is added.
+- Render supplies `PORT`.
 
-The server listens on `PORT` (default: `3000`). Check:
+The app exits rather than running in an insecure partially configured state if the database URI or JWT secret is missing.
 
-- `GET /` — service status
-- `GET /health` — health check
+## HTTP API
 
-## Socket events
+- `POST /api/auth/register` — `{ username, email?, password, displayName? }`
+- `POST /api/auth/login` — `{ identity, password }` (identity is username or email)
+- `GET /api/me` — authenticated profile
+- `GET /api/users/search?q=...` — authenticated user search
+- `POST /api/conversations` — authenticated `{ userId }`, creates or returns a one-to-one conversation
+- `GET /api/conversations` — only the signed-in user's conversations
+- `GET /api/conversations/:id/messages` — only messages in a conversation the user belongs to
+- `GET /api/calls` — only the signed-in user's call history
 
-Client to server:
+Pass the login/register token as `Authorization: Bearer <token>`.
 
-- `room:join` — `{ "roomId": "room_123" }`
-- `chat:message` — `{ "roomId": "room_123", "message": "Hello" }`
-- `call:offer`, `call:answer`, `call:ice-candidate`, `call:reject`, `call:end` — include `targetSocketId` and the event data.
+## Authenticated Socket.IO events
 
-Server to client:
+Connect with `auth: { token }`.
 
-- `room:joined`
-- `room:user-joined`
-- `chat:message`
-- `server:error`
-- The call signaling events are relayed to the requested target socket.
+- `conversation:join` — `{ conversationId }`; server verifies membership before joining the private room.
+- `chat:send` — `{ conversationId, ciphertext, nonce, keyVersion }`; server persists ciphertext only and emits `chat:new` to that conversation.
+- `call:offer` — `{ targetUserId, kind: "audio"|"video", sdp }`
+- `call:answer`, `call:ice-candidate`, `call:reject`, `call:end` — require a valid `callId` and participant membership.
 
-## Important security note
+## Data and privacy
 
-This is an initial signaling backend, not a production-secure service. It does not yet authenticate users, authorize room membership, persist chat messages, or protect call signaling with account-level permissions. Add authentication, authorization, rate limits, persistent storage, and a TURN service before public release. Do not put passwords, private keys, or database credentials in source control.
+Collections: `users`, `conversations`, `messages`, `calls`, and `devices`. Mongoose creates unique account indexes, participant/timeline indexes, and a TTL index on `messages.expiresAt`. New messages receive an expiry timestamp seven days after creation; MongoDB TTL cleanup is asynchronous, so deletion is not guaranteed at the exact second.
+
+The message API accepts encrypted payload fields only. **End-to-end encryption is not complete until the Android app performs audited client-side encryption and key exchange.** Do not send plaintext to `chat:send`.
+
+## Release gate
+
+This branch is not yet compatible with the existing anonymous Android client. The Android login, user search, private conversation, message encryption/decryption, and account-based call signaling screens must be integrated and tested on two physical devices before changing the production Render service. Keep the currently working audio/video service untouched until that validation passes.
