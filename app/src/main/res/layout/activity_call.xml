@@ -1,8 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:padding="28dp" android:background="#101820">
- <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="PrivateCall Audio" android:textColor="#FFFFFF" android:textSize="28sp" android:textStyle="bold" android:layout_marginBottom="24dp"/>
- <TextView android:id="@+id/callStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Preparing microphone…" android:textColor="#B0BEC5" android:textSize="16sp" android:gravity="center" android:padding="20dp" android:layout_marginBottom="24dp"/>
- <Button android:id="@+id/buttonAcceptCall" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Accept call" android:backgroundTint="#2E7D32" android:textColor="#FFFFFF" android:visibility="gone"/>
- <Button android:id="@+id/buttonMicrophone" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Mute microphone" android:enabled="false" android:layout_marginTop="12dp"/>
- <Button android:id="@+id/buttonEndCall" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="End call" android:backgroundTint="#D32F2F" android:textColor="#FFFFFF" android:layout_marginTop="20dp"/>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+ android:layout_width="match_parent" android:layout_height="match_parent"
+ android:orientation="vertical" android:padding="12dp" android:background="#101820">
+ <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+  android:text="PrivateCall Video" android:textColor="#FFFFFF" android:textSize="22sp"
+  android:textStyle="bold" android:gravity="center" android:padding="8dp"/>
+ <FrameLayout android:layout_width="match_parent" android:layout_height="0dp"
+  android:layout_weight="1" android:background="#05090D">
+  <org.webrtc.SurfaceViewRenderer android:id="@+id/remoteVideo"
+   android:layout_width="match_parent" android:layout_height="match_parent"/>
+  <org.webrtc.SurfaceViewRenderer android:id="@+id/localVideo"
+   android:layout_width="116dp" android:layout_height="164dp"
+   android:layout_gravity="top|end" android:layout_margin="12dp"
+   android:elevation="8dp"/>
+ </FrameLayout>
+ <TextView android:id="@+id/callStatus" android:layout_width="match_parent"
+  android:layout_height="wrap_content" android:text="Camera और microphone तैयार हो रहे हैं…"
+  android:textColor="#B0BEC5" android:textSize="14sp" android:gravity="center" android:padding="10dp"/>
+ <Button android:id="@+id/buttonAcceptCall" android:layout_width="match_parent"
+  android:layout_height="wrap_content" android:text="Accept video call"
+  android:backgroundTint="#2E7D32" android:textColor="#FFFFFF" android:visibility="gone"/>
+ <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+  android:orientation="horizontal">
+  <Button android:id="@+id/buttonMicrophone" android:layout_width="0dp"
+   android:layout_height="wrap_content" android:layout_weight="1"
+   android:text="Mute mic" android:enabled="false"/>
+  <Button android:id="@+id/buttonCamera" android:layout_width="0dp"
+   android:layout_height="wrap_content" android:layout_weight="1"
+   android:text="Camera OFF" android:enabled="false"/>
+ </LinearLayout>
+ <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+  android:orientation="horizontal">
+  <Button android:id="@+id/buttonSwitchCamera" android:layout_width="0dp"
+   android:layout_height="wrap_content" android:layout_weight="1"
+   android:text="Switch camera" android:enabled="false"/>
+  <Button android:id="@+id/buttonEndCall" android:layout_width="0dp"
+   android:layout_height="wrap_content" android:layout_weight="1"
+   android:text="End call" android:backgroundTint="#D32F2F" android:textColor="#FFFFFF"/>
+ </LinearLayout>
 </LinearLayout>
