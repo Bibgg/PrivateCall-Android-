@@ -16,10 +16,10 @@
  function send(event,data){if(!socket||!socket.connected||!currentPeer)return;socket.emit(event,{targetSocketId:currentPeer,...data});}
  async function getPC(){
    if(pc)return pc;
-   localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-   pc=new RTCPeerConnection(config);
+   localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:20,max:24}}});
+   pc=new RTCPeerConnection(config);$("localVideo").srcObject=localStream;$("localVideo").play().catch(()=>{});
    localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-   pc.ontrack=e=>{$("remoteAudio").srcObject=e.streams[0];$("remoteAudio").play().catch(()=>{});};
+   pc.ontrack=e=>{const stream=e.streams[0];if(e.track.kind==="video"){$("remoteVideo").srcObject=stream;$("remoteVideo").play().catch(()=>{});}if(e.track.kind==="audio"){$("remoteAudio").srcObject=stream;$("remoteAudio").play().catch(()=>{});}};
    pc.onicecandidate=e=>{if(e.candidate)send("call:ice-candidate",{candidate:e.candidate.candidate,sdpMid:e.candidate.sdpMid,sdpMLineIndex:e.candidate.sdpMLineIndex});};
    pc.onconnectionstatechange=()=>{callStatus("WebRTC: "+pc.connectionState);if(pc.connectionState==="failed"||pc.connectionState==="closed")cleanup(false);};
    pc.oniceconnectionstatechange=()=>{if(pc)callStatus("ICE: "+pc.iceConnectionState);};
@@ -52,7 +52,7 @@
  function cleanup(notify){
    if(notify&&currentPeer)send("call:end",{});
    if(pc){pc.ontrack=null;pc.onicecandidate=null;pc.close();}
-   pc=null;remoteSet=false;pendingIce=[];currentPeer="";
+   pc=null;remoteSet=false;pendingIce=[];currentPeer="";$("localVideo").srcObject=null;$("remoteVideo").srcObject=null;
    if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
    $("remoteAudio").srcObject=null;$("hangup").disabled=true;
    $("call").disabled=!socket||!socket.connected||!selected;
