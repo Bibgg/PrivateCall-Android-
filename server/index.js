@@ -17,6 +17,9 @@ app.disable("x-powered-by");
 app.use(helmet());
 app.use(cors({ origin: CLIENT_ORIGIN === "*" ? "*" : CLIENT_ORIGIN }));
 app.use(express.json({ limit: "16kb" }));
+app.get("/test-client", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "test-client.html"));
+});
 app.use("/test-client", express.static(path.join(__dirname, "public")));
 
 app.get("/", (_req, res) => {
