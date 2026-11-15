@@ -14,6 +14,7 @@ import org.webrtc.MediaConstraints;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
 import org.webrtc.RtpReceiver;
+import org.webrtc.RtpTransceiver;
 import org.webrtc.SessionDescription;
 import org.webrtc.SurfaceTextureHelper;
 import org.webrtc.SurfaceViewRenderer;
@@ -38,7 +39,6 @@ public class WebRtcClient {
     private SurfaceViewRenderer remoteRenderer;
     private IceCandidateListener iceCandidateListener;
     private ConnectionListener connectionListener;
-    private boolean remoteVideoAttached;
 
     public interface IceCandidateListener { void onCandidate(org.webrtc.IceCandidate candidate); }
     public interface ConnectionListener { void onState(String state); }
@@ -86,16 +86,41 @@ public class WebRtcClient {
                 if (iceCandidateListener != null) iceCandidateListener.onCandidate(candidate);
             }
             @Override public void onIceCandidatesRemoved(org.webrtc.IceCandidate[] candidates) { }
-            @Override public void onAddStream(org.webrtc.MediaStream stream) { }
-            @Override public void onRemoveStream(org.webrtc.MediaStream stream) { }
+            @Override public void onAddStream(org.webrtc.MediaStream stream) {
+                if (stream.videoTracks != null) {
+                    for (VideoTrack track : stream.videoTracks) attachRemoteVideo(track);
+                }
+                if (stream.audioTracks != null) {
+                    for (AudioTrack track : stream.audioTracks) track.setEnabled(true);
+                }
+            }
+            @Override public void onRemoveStream(org.webrtc.MediaStream stream) {
+                if (stream.videoTracks != null) {
+                    for (VideoTrack track : stream.videoTracks) track.removeSink(remoteRenderer);
+                }
+            }
             @Override public void onDataChannel(org.webrtc.DataChannel channel) { }
             @Override public void onRenegotiationNeeded() { }
-            @Override public void onAddTrack(RtpReceiver receiver, org.webrtc.MediaStream[] streams) {
-                if (receiver.track() instanceof AudioTrack) {
+
+            // Unified Plan callback used by current WebRTC SDK releases.
+            @Override public void onTrack(RtpTransceiver transceiver) {
+                if (transceiver == null) return;
+                RtpReceiver receiver = transceiver.getReceiver();
+                if (receiver == null || receiver.track() == null) return;
+                if (receiver.track() instanceof VideoTrack) {
+                    attachRemoteVideo((VideoTrack) receiver.track());
+                } else if (receiver.track() instanceof AudioTrack) {
                     ((AudioTrack) receiver.track()).setEnabled(true);
-                } else if (receiver.track() instanceof VideoTrack && !remoteVideoAttached) {
-                    remoteVideoAttached = true;
-                    ((VideoTrack) receiver.track()).addSink(remoteRenderer);
+                }
+            }
+
+            // Keep the older callback for SDK implementations that still invoke it.
+            @Override public void onAddTrack(RtpReceiver receiver, org.webrtc.MediaStream[] streams) {
+                if (receiver == null || receiver.track() == null) return;
+                if (receiver.track() instanceof VideoTrack) {
+                    attachRemoteVideo((VideoTrack) receiver.track());
+                } else if (receiver.track() instanceof AudioTrack) {
+                    ((AudioTrack) receiver.track()).setEnabled(true);
                 }
             }
         });
@@ -130,6 +155,13 @@ public class WebRtcClient {
         localVideoTrack.setEnabled(true);
         localVideoTrack.addSink(localRenderer);
         peerConnection.addTrack(localVideoTrack, Arrays.asList("privatecall-stream"));
+    }
+
+    private void attachRemoteVideo(VideoTrack track) {
+        if (track == null || remoteRenderer == null) return;
+        Log.d(TAG, "Remote video track received: " + track.id());
+        track.setEnabled(true);
+        track.addSink(remoteRenderer);
     }
 
     public void addIceCandidate(org.webrtc.IceCandidate candidate) {
