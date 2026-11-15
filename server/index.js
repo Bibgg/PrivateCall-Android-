@@ -1,4 +1,5 @@
 const http = require("node:http");
+const path = require("node:path");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -16,6 +17,7 @@ app.disable("x-powered-by");
 app.use(helmet());
 app.use(cors({ origin: CLIENT_ORIGIN === "*" ? "*" : CLIENT_ORIGIN }));
 app.use(express.json({ limit: "16kb" }));
+app.use("/test-client", express.static(path.join(__dirname, "public")));
 
 app.get("/", (_req, res) => {
   res.status(200).json({
