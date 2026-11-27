@@ -17,8 +17,7 @@
         <activity android:name=".CallActivity" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".ChatActivity" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="false" />
-        <activity android:name=".MessengerActivity" android:screenOrientation="portrait" android:exported="false" />
-        <activity android:name=".HomeActivity" android:screenOrientation="portrait" android:exported="true">
+        <activity android:name=".MessengerActivity" android:screenOrientation="portrait" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
