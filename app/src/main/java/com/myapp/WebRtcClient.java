@@ -55,6 +55,8 @@ public class WebRtcClient {
                 PeerConnectionFactory.InitializationOptions.builder(context)
                         .createInitializationOptions());
         factory = PeerConnectionFactory.builder()
+                .setVideoEncoderFactory(new org.webrtc.DefaultVideoEncoderFactory(eglBase.getEglBaseContext(), true, true))
+                .setVideoDecoderFactory(new org.webrtc.DefaultVideoDecoderFactory(eglBase.getEglBaseContext()))
                 .setOptions(new PeerConnectionFactory.Options())
                 .createPeerConnectionFactory();
 
