@@ -81,7 +81,7 @@
                 android:layout_height="52dp"
                 android:gravity="center_vertical"
                 android:paddingHorizontal="16dp"
-                android:text="🔒  Privacy & Security"
+                android:text="🔒  Privacy and Security"
                 android:textColor="#FFFFFF"
                 android:textSize="15sp" />
 
@@ -108,7 +108,7 @@
                 android:layout_height="52dp"
                 android:gravity="center_vertical"
                 android:paddingHorizontal="16dp"
-                android:text="💾  Storage & Data"
+                android:text="💾  Storage and Data"
                 android:textColor="#FFFFFF"
                 android:textSize="15sp" />
 
@@ -117,7 +117,7 @@
                 android:layout_height="52dp"
                 android:gravity="center_vertical"
                 android:paddingHorizontal="16dp"
-                android:text="❓  Help & Support"
+                android:text="❓  Help and Support"
                 android:textColor="#FFFFFF"
                 android:textSize="15sp" />
         </LinearLayout>
