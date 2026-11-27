@@ -47,6 +47,8 @@ function requireAuth(req, res, next) {
     next();
   } catch { res.status(401).json({ error: "AUTH_REQUIRED" }); }
 }
+// Express 4 does not catch errors from async handlers; pass them to the error handler.
+const wrap = handler => (req, res, next) => handler(req, res, next).catch(next);
 async function participantConversation(id, userId) {
   if (!validId(id)) return null;
   return Conversation.findOne({ _id: id, participantIds: userId });
@@ -83,21 +85,21 @@ app.post("/api/auth/login", async (req, res) => {
   } catch (e) { console.error("login", e); res.status(500).json({ error: "SERVER_ERROR" }); }
 });
 
-app.get("/api/me", requireAuth, async (req, res) => {
+app.get("/api/me", requireAuth, wrap(async (req, res) => {
   const user = await User.findById(req.userId);
   if (!user) return res.status(404).json({ error: "USER_NOT_FOUND" });
   res.json({ user: publicUser(user) });
-});
+}));
 
-app.get("/api/users/search", requireAuth, async (req, res) => {
+app.get("/api/users/search", requireAuth, wrap(async (req, res) => {
   const q = clean(req.query.q, 40).toLowerCase();
   if (q.length < 2 || !/^[a-z0-9_. -]+$/i.test(q)) return res.json({ users: [] });
   const pattern = new RegExp("^" + escapeRegex(q), "i");
   const users = await User.find({ _id: { $ne: req.userId }, $or: [{ usernameNormalized: pattern }, { displayName: pattern }] }).limit(20);
   res.json({ users: users.map(publicUser) });
-});
+}));
 
-app.post("/api/conversations", requireAuth, async (req, res) => {
+app.post("/api/conversations", requireAuth, wrap(async (req, res) => {
   const otherId = clean(req.body.userId, 40);
   if (!validId(otherId) || otherId === req.userId) return res.status(400).json({ error: "INVALID_USER" });
   if (!await User.exists({ _id: otherId })) return res.status(404).json({ error: "USER_NOT_FOUND" });
@@ -105,9 +107,9 @@ app.post("/api/conversations", requireAuth, async (req, res) => {
   let c = await Conversation.findOne({ participantIds: { $all: participantIds, $size: 2 } });
   if (!c) c = await Conversation.create({ participantIds });
   res.json({ conversation: { id: String(c._id), updatedAt: c.updatedAt } });
-});
+}));
 
-app.get("/api/conversations", requireAuth, async (req, res) => {
+app.get("/api/conversations", requireAuth, wrap(async (req, res) => {
   const rows = await Conversation.find({ participantIds: req.userId }).sort({ updatedAt: -1 }).limit(100);
   const conversations = await Promise.all(rows.map(async c => {
     const peerId = c.participantIds.find(id => String(id) !== req.userId);
@@ -118,19 +120,27 @@ app.get("/api/conversations", requireAuth, async (req, res) => {
     } : null, updatedAt: c.updatedAt };
   }));
   res.json({ conversations });
-});
+}));
 
-app.get("/api/conversations/:id/messages", requireAuth, async (req, res) => {
+app.get("/api/conversations/:id/messages", requireAuth, wrap(async (req, res) => {
   const c = await participantConversation(req.params.id, req.userId);
   if (!c) return res.status(404).json({ error: "CONVERSATION_NOT_FOUND" });
   const before = req.query.before ? new Date(req.query.before) : new Date();
+  if (Number.isNaN(before.getTime())) return res.status(400).json({ error: "INVALID_DATE" });
   const rows = await Message.find({ conversationId: c._id, expiresAt: { $gt: new Date() }, createdAt: { $lt: before } }).sort({ createdAt: -1 }).limit(50);
   res.json({ messages: rows.reverse().map(m => ({ id: String(m._id), senderId: String(m.senderId), ciphertext: m.ciphertext, nonce: m.nonce, keyVersion: m.keyVersion, createdAt: m.createdAt })) });
-});
+}));
 
-app.get("/api/calls", requireAuth, async (req, res) => {
+app.get("/api/calls", requireAuth, wrap(async (req, res) => {
   const rows = await Call.find({ participantIds: req.userId }).sort({ startedAt: -1 }).limit(100);
   res.json({ calls: rows.map(c => ({ id: String(c._id), callerId: String(c.callerId), calleeId: String(c.calleeId), kind: c.kind, status: c.status, startedAt: c.startedAt, answeredAt: c.answeredAt, endedAt: c.endedAt, durationSeconds: c.durationSeconds })) });
+}));
+
+app.use((error, _req, res, next) => {
+  if (res.headersSent) return next(error);
+  const status = error.status >= 400 && error.status < 500 ? error.status : 500;
+  if (status === 500) console.error("request", error);
+  res.status(status).json({ error: status === 500 ? "SERVER_ERROR" : "INVALID_REQUEST" });
 });
 
 const io = new Server(server, { cors: { origin: corsOrigin, methods: ["GET", "POST"] }, maxHttpBufferSize: 256 * 1024, connectTimeout: 20000 });
@@ -142,49 +152,57 @@ io.use((socket, next) => {
   } catch { next(new Error("AUTH_REQUIRED")); }
 });
 
+// A bad payload or a database error must fail one request, never the whole server.
+function onSafe(socket, eventName, handler) {
+  socket.on(eventName, async (...args) => {
+    const ack = typeof args[args.length - 1] === "function" ? args.pop() : () => {};
+    const payload = args[0] && typeof args[0] === "object" ? args[0] : {};
+    try {
+      await handler(payload, ack);
+    } catch (e) {
+      console.error(eventName, e);
+      ack({ ok: false, error: "SERVER_ERROR" });
+    }
+  });
+}
+
 io.on("connection", socket => {
   socket.join("user:" + socket.userId);
-  socket.on("conversation:join", async (payload = {}, ack = () => {}) => {
+  onSafe(socket, "conversation:join", async (payload, ack) => {
     const c = await participantConversation(payload.conversationId, socket.userId);
     if (!c) return ack({ ok: false, error: "NOT_A_PARTICIPANT" });
     socket.join("conversation:" + String(c._id)); ack({ ok: true });
   });
-  socket.on("chat:send", async (payload = {}, ack = () => {}) => {
-    try {
-      const c = await participantConversation(payload.conversationId, socket.userId);
-      if (!c) return ack({ ok: false, error: "NOT_A_PARTICIPANT" });
-      const ciphertext = clean(payload.ciphertext, 12000), nonce = clean(payload.nonce, 256), keyVersion = Number(payload.keyVersion);
-      if (!ciphertext || !nonce || !Number.isInteger(keyVersion) || keyVersion < 1) return ack({ ok: false, error: "INVALID_ENCRYPTED_MESSAGE" });
-      const now = new Date();
-      const m = await Message.create({ conversationId: c._id, senderId: socket.userId, ciphertext, nonce, keyVersion, createdAt: now, expiresAt: new Date(now.getTime() + 7 * 86400000) });
-      c.updatedAt = now; c.lastMessageAt = now; await c.save();
-      const safe = { id: String(m._id), conversationId: String(c._id), senderId: socket.userId, ciphertext, nonce, keyVersion, createdAt: now };
-      io.to("conversation:" + String(c._id)).emit("chat:new", safe); ack({ ok: true, message: safe });
-    } catch (e) { console.error("chat:send", e); ack({ ok: false, error: "SERVER_ERROR" }); }
+  onSafe(socket, "chat:send", async (payload, ack) => {
+    const c = await participantConversation(payload.conversationId, socket.userId);
+    if (!c) return ack({ ok: false, error: "NOT_A_PARTICIPANT" });
+    const ciphertext = clean(payload.ciphertext, 12000), nonce = clean(payload.nonce, 256), keyVersion = Number(payload.keyVersion);
+    if (!ciphertext || !nonce || !Number.isInteger(keyVersion) || keyVersion < 1) return ack({ ok: false, error: "INVALID_ENCRYPTED_MESSAGE" });
+    const now = new Date();
+    const m = await Message.create({ conversationId: c._id, senderId: socket.userId, ciphertext, nonce, keyVersion, createdAt: now, expiresAt: new Date(now.getTime() + 7 * 86400000) });
+    c.updatedAt = now; c.lastMessageAt = now; await c.save();
+    const safe = { id: String(m._id), conversationId: String(c._id), senderId: socket.userId, ciphertext, nonce, keyVersion, createdAt: now };
+    io.to("conversation:" + String(c._id)).emit("chat:new", safe); ack({ ok: true, message: safe });
   });
-  socket.on("call:offer", async (p = {}, ack = () => {}) => {
-    try {
-      const targetUserId = clean(p.targetUserId, 40);
-      if (!validId(targetUserId) || targetUserId === socket.userId || !["audio", "video"].includes(p.kind)) return ack({ ok: false, error: "INVALID_CALL" });
-      if (!await User.exists({ _id: targetUserId })) return ack({ ok: false, error: "USER_NOT_FOUND" });
-      const c = await Call.create({ participantIds: [socket.userId, targetUserId], callerId: socket.userId, calleeId: targetUserId, kind: p.kind, status: "ringing" });
-      io.to("user:" + targetUserId).emit("call:offer", { callId: String(c._id), fromUserId: socket.userId, kind: p.kind, sdp: clean(p.sdp, 50000) });
-      ack({ ok: true, callId: String(c._id) });
-    } catch (e) { console.error("call offer", e); ack({ ok: false, error: "SERVER_ERROR" }); }
+  onSafe(socket, "call:offer", async (p, ack) => {
+    const targetUserId = clean(p.targetUserId, 40);
+    if (!validId(targetUserId) || targetUserId === socket.userId || !["audio", "video"].includes(p.kind)) return ack({ ok: false, error: "INVALID_CALL" });
+    if (!await User.exists({ _id: targetUserId })) return ack({ ok: false, error: "USER_NOT_FOUND" });
+    const c = await Call.create({ participantIds: [socket.userId, targetUserId], callerId: socket.userId, calleeId: targetUserId, kind: p.kind, status: "ringing" });
+    io.to("user:" + targetUserId).emit("call:offer", { callId: String(c._id), fromUserId: socket.userId, kind: p.kind, sdp: clean(p.sdp, 50000) });
+    ack({ ok: true, callId: String(c._id) });
   });
   for (const eventName of ["call:answer", "call:ice-candidate", "call:reject", "call:end"]) {
-    socket.on(eventName, async (p = {}, ack = () => {}) => {
-      try {
-        if (!validId(p.callId)) return ack({ ok: false, error: "INVALID_CALL" });
-        const c = await Call.findOne({ _id: p.callId, participantIds: socket.userId });
-        if (!c) return ack({ ok: false, error: "CALL_NOT_FOUND" });
-        const peerId = String(c.callerId) === socket.userId ? String(c.calleeId) : String(c.callerId);
-        if (eventName === "call:answer") { c.status = "accepted"; c.answeredAt = new Date(); await c.save(); }
-        if (eventName === "call:reject") { c.status = "rejected"; c.endedAt = new Date(); await c.save(); }
-        if (eventName === "call:end") { c.status = "ended"; c.endedAt = new Date(); c.durationSeconds = c.answeredAt ? Math.max(0, Math.floor((c.endedAt - c.answeredAt) / 1000)) : 0; await c.save(); }
-        const forwarded = { ...p, fromUserId: socket.userId }; delete forwarded.targetSocketId;
-        io.to("user:" + peerId).emit(eventName, forwarded); ack({ ok: true });
-      } catch (e) { console.error(eventName, e); ack({ ok: false, error: "SERVER_ERROR" }); }
+    onSafe(socket, eventName, async (p, ack) => {
+      if (!validId(p.callId)) return ack({ ok: false, error: "INVALID_CALL" });
+      const c = await Call.findOne({ _id: p.callId, participantIds: socket.userId });
+      if (!c) return ack({ ok: false, error: "CALL_NOT_FOUND" });
+      const peerId = String(c.callerId) === socket.userId ? String(c.calleeId) : String(c.callerId);
+      if (eventName === "call:answer") { c.status = "accepted"; c.answeredAt = new Date(); await c.save(); }
+      if (eventName === "call:reject") { c.status = "rejected"; c.endedAt = new Date(); await c.save(); }
+      if (eventName === "call:end") { c.status = "ended"; c.endedAt = new Date(); c.durationSeconds = c.answeredAt ? Math.max(0, Math.floor((c.endedAt - c.answeredAt) / 1000)) : 0; await c.save(); }
+      const forwarded = { ...p, fromUserId: socket.userId }; delete forwarded.targetSocketId;
+      io.to("user:" + peerId).emit(eventName, forwarded); ack({ ok: true });
     });
   }
   socket.on("disconnect", reason => console.log("socket disconnected", socket.userId, reason));
