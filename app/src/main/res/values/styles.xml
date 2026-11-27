@@ -1,9 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#16A085</item>
-        <item name="android:navigationBarColor">#101820</item>
-        <item name="android:statusBarColor">#101820</item>
+    <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:colorAccent">#7B5CFF</item>
+        <item name="android:navigationBarColor">#0A0E1A</item>
+        <item name="android:statusBarColor">#0A0E1A</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">#0A0E1A</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+        <item name="android:textColorSecondary">#A0AEC0</item>
+    </style>
+
+    <style name="OtpBox">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">56dp</item>
+        <item name="android:layout_margin">5dp</item>
+        <item name="android:background">@drawable/bg_input</item>
+        <item name="android:gravity">center</item>
+        <item name="android:inputType">number</item>
+        <item name="android:maxLength">1</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">22sp</item>
+        <item name="android:textStyle">bold</item>
     </style>
 </resources>
